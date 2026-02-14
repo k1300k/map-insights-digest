@@ -14,13 +14,203 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      keywords: {
+        Row: {
+          created_at: string
+          id: string
+          type: string
+          updated_at: string
+          value: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          type: string
+          updated_at?: string
+          value: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          type?: string
+          updated_at?: string
+          value?: string
+        }
+        Relationships: []
+      }
+      report_items: {
+        Row: {
+          confidence: number
+          created_at: string
+          id: string
+          impact_en: string
+          impact_ko: string
+          published_at: string | null
+          region: string
+          relevance_score: number
+          report_run_id: string
+          source_name: string
+          source_url: string
+          summary_en: string[]
+          summary_ko: string[]
+          tags: string[]
+          title_en: string
+          title_ko: string
+          updated_at: string
+        }
+        Insert: {
+          confidence?: number
+          created_at?: string
+          id?: string
+          impact_en?: string
+          impact_ko?: string
+          published_at?: string | null
+          region?: string
+          relevance_score?: number
+          report_run_id: string
+          source_name: string
+          source_url: string
+          summary_en?: string[]
+          summary_ko?: string[]
+          tags?: string[]
+          title_en: string
+          title_ko: string
+          updated_at?: string
+        }
+        Update: {
+          confidence?: number
+          created_at?: string
+          id?: string
+          impact_en?: string
+          impact_ko?: string
+          published_at?: string | null
+          region?: string
+          relevance_score?: number
+          report_run_id?: string
+          source_name?: string
+          source_url?: string
+          summary_en?: string[]
+          summary_ko?: string[]
+          tags?: string[]
+          title_en?: string
+          title_ko?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "report_items_report_run_id_fkey"
+            columns: ["report_run_id"]
+            isOneToOne: false
+            referencedRelation: "report_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      report_runs: {
+        Row: {
+          completed_at: string | null
+          created_at: string
+          date: string
+          filtered_articles: number
+          id: string
+          started_at: string | null
+          status: string
+          total_articles: number
+          updated_at: string
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string
+          date: string
+          filtered_articles?: number
+          id?: string
+          started_at?: string | null
+          status?: string
+          total_articles?: number
+          updated_at?: string
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string
+          date?: string
+          filtered_articles?: number
+          id?: string
+          started_at?: string | null
+          status?: string
+          total_articles?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      sources: {
+        Row: {
+          created_at: string
+          enabled: boolean
+          id: string
+          name: string
+          parser_type: string
+          region_hint: string
+          type: string
+          updated_at: string
+          url: string
+        }
+        Insert: {
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          name: string
+          parser_type?: string
+          region_hint?: string
+          type: string
+          updated_at?: string
+          url: string
+        }
+        Update: {
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          name?: string
+          parser_type?: string
+          region_hint?: string
+          type?: string
+          updated_at?: string
+          url?: string
+        }
+        Relationships: []
+      }
+      subscriptions: {
+        Row: {
+          created_at: string
+          email: string
+          id: string
+          status: string
+          token: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          id?: string
+          status?: string
+          token?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          id?: string
+          status?: string
+          token?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      is_admin: { Args: never; Returns: boolean }
     }
     Enums: {
       [_ in never]: never
