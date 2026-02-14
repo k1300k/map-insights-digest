@@ -177,8 +177,15 @@ export function useLatestReportItems() {
 export function useSubscribe() {
   return useMutation({
     mutationFn: async (email: string) => {
-      const { error } = await supabase.from("subscriptions").insert({ email });
-      if (error) throw error;
+      const cleanEmail = email.trim().toLowerCase();
+      if (!cleanEmail || cleanEmail.length > 255 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
+        throw new Error("Invalid email address");
+      }
+      const { error } = await supabase.from("subscriptions").insert({ email: cleanEmail });
+      if (error) {
+        if (error.code === "23505") throw new Error("This email is already subscribed");
+        throw error;
+      }
     },
   });
 }

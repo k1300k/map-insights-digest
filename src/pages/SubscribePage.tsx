@@ -2,17 +2,27 @@ import { useState } from "react";
 import { Mail, Check } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useSubscribe } from "@/hooks/useSupabaseData";
+import { z } from "zod";
+
+const emailSchema = z.string().trim().toLowerCase().email("Please enter a valid email address").max(255, "Email is too long");
 
 export default function SubscribePage() {
   const { toast } = useToast();
   const [email, setEmail] = useState("");
   const [submitted, setSubmitted] = useState(false);
+  const [validationError, setValidationError] = useState("");
   const subscribeMut = useSubscribe();
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email.trim()) return;
-    subscribeMut.mutate(email, {
+    setValidationError("");
+    const result = emailSchema.safeParse(email);
+    if (!result.success) {
+      setValidationError(result.error.errors[0].message);
+      return;
+    }
+    const cleanEmail = result.data;
+    subscribeMut.mutate(cleanEmail, {
       onSuccess: () => {
         setSubmitted(true);
         toast({ title: "Subscribed!", description: `Daily reports will be sent to ${email}` });
@@ -50,11 +60,13 @@ export default function SubscribePage() {
             <input
               type="email"
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              onChange={(e) => { setEmail(e.target.value); setValidationError(""); }}
               placeholder="you@company.com"
               required
+              maxLength={255}
               className="w-full px-3 py-2 rounded-lg border border-input bg-background text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
             />
+            {validationError && <p className="text-xs text-destructive mt-1">{validationError}</p>}
           </div>
           <button
             type="submit"
