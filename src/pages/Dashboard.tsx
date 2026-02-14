@@ -4,13 +4,35 @@ import { useLatestReport, useLatestReportItems, useReportRuns } from "@/hooks/us
 import { StatusBadge } from "@/components/Badges";
 import ReportCard from "@/components/ReportCard";
 import LangToggle from "@/components/LangToggle";
-import { ArrowRight, Clock, FileText, Filter, TrendingUp, Loader2 } from "lucide-react";
+import { ArrowRight, Clock, FileText, Filter, TrendingUp, Loader2, Play } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import { useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 
 export default function Dashboard() {
   const [lang, setLang] = useState<"ko" | "en">("en");
+  const [running, setRunning] = useState(false);
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
   const { data: report, isLoading: loadingReport } = useLatestReport();
   const { data: items = [] } = useLatestReportItems();
   const { data: pastReports = [], isLoading: loadingPast } = useReportRuns();
+
+  const handleRunPipeline = async () => {
+    setRunning(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("run-pipeline");
+      if (error) throw error;
+      toast({ title: lang === "ko" ? "완료!" : "Done!", description: data?.message || "Pipeline finished" });
+      queryClient.invalidateQueries({ queryKey: ["latest_report"] });
+      queryClient.invalidateQueries({ queryKey: ["report_runs"] });
+      queryClient.invalidateQueries({ queryKey: ["report_items"] });
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    } finally {
+      setRunning(false);
+    }
+  };
 
   if (loadingReport || loadingPast) {
     return (
@@ -65,7 +87,17 @@ export default function Dashboard() {
             )}
           </p>
         </div>
-        <LangToggle value={lang} onChange={setLang} />
+        <div className="flex items-center gap-3">
+          <button
+            onClick={handleRunPipeline}
+            disabled={running}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50"
+          >
+            {running ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
+            {lang === "ko" ? (running ? "조사 중..." : "지금 조사") : (running ? "Running..." : "Run Now")}
+          </button>
+          <LangToggle value={lang} onChange={setLang} />
+        </div>
       </div>
 
       {/* Stats */}
