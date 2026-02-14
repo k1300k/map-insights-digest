@@ -1,1 +1,4 @@
 project_id = "ydrfkkzjcpnsrkuwvodu"
+
+[functions.run-pipeline]
+verify_jwt = false
