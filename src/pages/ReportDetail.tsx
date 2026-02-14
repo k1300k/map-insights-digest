@@ -1,10 +1,11 @@
 import { useState } from "react";
 import { useParams } from "react-router-dom";
-import { mockReport, mockReportItems } from "@/data/mockData";
+import { useReportRuns, useReportItems } from "@/hooks/useSupabaseData";
 import { StatusBadge } from "@/components/Badges";
 import ReportCard from "@/components/ReportCard";
 import LangToggle from "@/components/LangToggle";
-import { Region } from "@/data/types";
+import { Loader2 } from "lucide-react";
+import type { Region } from "@/data/types";
 
 const regionOrder: Region[] = ["NA", "EU", "KR", "Unknown"];
 const regionLabels: Record<Region, { ko: string; en: string }> = {
@@ -17,10 +18,38 @@ const regionLabels: Record<Region, { ko: string; en: string }> = {
 export default function ReportDetail() {
   const { date } = useParams();
   const [lang, setLang] = useState<"ko" | "en">("en");
-  const report = mockReport; // In production, fetch by date
+  const { data: runs = [], isLoading } = useReportRuns();
+
+  const report = runs.find((r) => r.date === date) || runs[0];
+  const { data: items = [], isLoading: loadingItems } = useReportItems(report?.id);
+
+  if (isLoading || loadingItems) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  const cardItems = items.map((item) => ({
+    id: item.id,
+    region: item.region as Region,
+    titleKo: item.title_ko,
+    titleEn: item.title_en,
+    summaryKo: item.summary_ko,
+    summaryEn: item.summary_en,
+    impactKo: item.impact_ko,
+    impactEn: item.impact_en,
+    tags: item.tags,
+    confidence: Number(item.confidence),
+    relevanceScore: Number(item.relevance_score),
+    sourceUrl: item.source_url,
+    sourceName: item.source_name,
+    publishedAt: item.published_at || "",
+  }));
 
   const grouped = regionOrder
-    .map((r) => ({ region: r, items: mockReportItems.filter((i) => i.region === r) }))
+    .map((r) => ({ region: r, items: cardItems.filter((i) => i.region === r) }))
     .filter((g) => g.items.length > 0);
 
   return (
@@ -31,11 +60,23 @@ export default function ReportDetail() {
             {lang === "ko" ? "일일 리포트" : "Daily Report"}
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
-            {date || report.date} · <StatusBadge status={report.status} /> · {report.filteredArticles} {lang === "ko" ? "건" : "items"}
+            {report ? (
+              <>{report.date} · <StatusBadge status={report.status as any} /> · {report.filtered_articles} {lang === "ko" ? "건" : "items"}</>
+            ) : (
+              lang === "ko" ? "리포트를 찾을 수 없습니다" : "Report not found"
+            )}
           </p>
         </div>
         <LangToggle value={lang} onChange={setLang} />
       </div>
+
+      {grouped.length === 0 && (
+        <div className="rounded-xl border border-border bg-card p-8 text-center shadow-card">
+          <p className="text-sm text-muted-foreground">
+            {lang === "ko" ? "이 리포트에 항목이 없습니다." : "No items in this report."}
+          </p>
+        </div>
+      )}
 
       {grouped.map((group) => (
         <section key={group.region}>

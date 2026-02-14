@@ -1,54 +1,72 @@
 import { useState } from "react";
-import { mockSources, mockIncludeKeywords, mockExcludeKeywords } from "@/data/mockData";
-import { Source, Keyword } from "@/data/types";
-import { Plus, Trash2, X, Check, Globe, Rss } from "lucide-react";
+import { useSources, useKeywords, useAddSource, useToggleSource, useDeleteSource, useAddKeyword, useDeleteKeyword } from "@/hooks/useSupabaseData";
+import { Plus, Trash2, X, Check, Globe, Rss, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 export default function SettingsPage() {
   const { toast } = useToast();
-  const [sources, setSources] = useState<Source[]>(mockSources);
-  const [includeKw, setIncludeKw] = useState<Keyword[]>(mockIncludeKeywords);
-  const [excludeKw, setExcludeKw] = useState<Keyword[]>(mockExcludeKeywords);
+  const { data: sources = [], isLoading: loadingSources } = useSources();
+  const { data: includeKw = [], isLoading: loadingInclude } = useKeywords("include");
+  const { data: excludeKw = [], isLoading: loadingExclude } = useKeywords("exclude");
+
+  const addSourceMut = useAddSource();
+  const toggleSourceMut = useToggleSource();
+  const deleteSourceMut = useDeleteSource();
+  const addKeywordMut = useAddKeyword();
+  const deleteKeywordMut = useDeleteKeyword();
+
   const [newInclude, setNewInclude] = useState("");
   const [newExclude, setNewExclude] = useState("");
   const [showAddSource, setShowAddSource] = useState(false);
-  const [newSource, setNewSource] = useState({ name: "", type: "rss" as "rss" | "html", url: "", parserType: "standard", regionHint: "NA" as Source["regionHint"] });
+  const [newSource, setNewSource] = useState({ name: "", type: "rss" as string, url: "", parser_type: "standard", region_hint: "NA" as string });
 
   const addKeyword = (type: "include" | "exclude") => {
     const val = type === "include" ? newInclude.trim() : newExclude.trim();
     if (!val) return;
-    const kw: Keyword = { id: Date.now().toString(), value: val, type };
-    if (type === "include") {
-      setIncludeKw([...includeKw, kw]);
-      setNewInclude("");
-    } else {
-      setExcludeKw([...excludeKw, kw]);
-      setNewExclude("");
-    }
-    toast({ title: "Keyword added", description: val });
+    addKeywordMut.mutate({ value: val, type }, {
+      onSuccess: () => {
+        if (type === "include") setNewInclude(""); else setNewExclude("");
+        toast({ title: "Keyword added", description: val });
+      },
+      onError: (e) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+    });
   };
 
-  const removeKeyword = (id: string, type: "include" | "exclude") => {
-    if (type === "include") setIncludeKw(includeKw.filter((k) => k.id !== id));
-    else setExcludeKw(excludeKw.filter((k) => k.id !== id));
+  const removeKeyword = (id: string) => {
+    deleteKeywordMut.mutate(id);
   };
 
-  const toggleSource = (id: string) => {
-    setSources(sources.map((s) => (s.id === id ? { ...s, enabled: !s.enabled } : s)));
+  const toggleSource = (id: string, currentEnabled: boolean) => {
+    toggleSourceMut.mutate({ id, enabled: !currentEnabled });
   };
 
   const removeSource = (id: string) => {
-    setSources(sources.filter((s) => s.id !== id));
-    toast({ title: "Source removed" });
+    deleteSourceMut.mutate(id, {
+      onSuccess: () => toast({ title: "Source removed" }),
+    });
   };
 
   const addSource = () => {
     if (!newSource.name || !newSource.url) return;
-    setSources([...sources, { ...newSource, id: Date.now().toString(), enabled: true }]);
-    setNewSource({ name: "", type: "rss", url: "", parserType: "standard", regionHint: "NA" });
-    setShowAddSource(false);
-    toast({ title: "Source added", description: newSource.name });
+    addSourceMut.mutate(newSource, {
+      onSuccess: () => {
+        setNewSource({ name: "", type: "rss", url: "", parser_type: "standard", region_hint: "NA" });
+        setShowAddSource(false);
+        toast({ title: "Source added", description: newSource.name });
+      },
+      onError: (e) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+    });
   };
+
+  const isLoading = loadingSources || loadingInclude || loadingExclude;
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-4xl mx-auto space-y-8">
@@ -66,7 +84,7 @@ export default function SettingsPage() {
             {includeKw.map((k) => (
               <span key={k.id} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-accent text-accent-foreground text-xs font-medium">
                 {k.value}
-                <button onClick={() => removeKeyword(k.id, "include")} className="hover:text-destructive"><X className="h-3 w-3" /></button>
+                <button onClick={() => removeKeyword(k.id)} className="hover:text-destructive"><X className="h-3 w-3" /></button>
               </span>
             ))}
           </div>
@@ -91,7 +109,7 @@ export default function SettingsPage() {
             {excludeKw.map((k) => (
               <span key={k.id} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-destructive/10 text-destructive text-xs font-medium">
                 {k.value}
-                <button onClick={() => removeKeyword(k.id, "exclude")} className="hover:text-destructive"><X className="h-3 w-3" /></button>
+                <button onClick={() => removeKeyword(k.id)} className="hover:text-destructive"><X className="h-3 w-3" /></button>
               </span>
             ))}
           </div>
@@ -127,11 +145,11 @@ export default function SettingsPage() {
             <div className="grid gap-3 sm:grid-cols-2">
               <input value={newSource.name} onChange={(e) => setNewSource({ ...newSource, name: e.target.value })} placeholder="Source name" className="px-3 py-1.5 rounded-lg border border-input bg-background text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring" />
               <input value={newSource.url} onChange={(e) => setNewSource({ ...newSource, url: e.target.value })} placeholder="URL" className="px-3 py-1.5 rounded-lg border border-input bg-background text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring" />
-              <select value={newSource.type} onChange={(e) => setNewSource({ ...newSource, type: e.target.value as "rss" | "html" })} className="px-3 py-1.5 rounded-lg border border-input bg-background text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring">
+              <select value={newSource.type} onChange={(e) => setNewSource({ ...newSource, type: e.target.value })} className="px-3 py-1.5 rounded-lg border border-input bg-background text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring">
                 <option value="rss">RSS</option>
                 <option value="html">HTML</option>
               </select>
-              <select value={newSource.regionHint} onChange={(e) => setNewSource({ ...newSource, regionHint: e.target.value as Source["regionHint"] })} className="px-3 py-1.5 rounded-lg border border-input bg-background text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring">
+              <select value={newSource.region_hint} onChange={(e) => setNewSource({ ...newSource, region_hint: e.target.value })} className="px-3 py-1.5 rounded-lg border border-input bg-background text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring">
                 <option value="NA">North America</option>
                 <option value="EU">Europe</option>
                 <option value="KR">Korea</option>
@@ -150,7 +168,7 @@ export default function SettingsPage() {
         <div className="rounded-xl border border-border bg-card overflow-hidden shadow-card">
           {sources.map((s, i) => (
             <div key={s.id} className={`flex items-center gap-3 px-4 py-3 ${i < sources.length - 1 ? "border-b border-border" : ""}`}>
-              <button onClick={() => toggleSource(s.id)} className={`flex-shrink-0 h-4 w-4 rounded border transition-colors ${s.enabled ? "bg-primary border-primary" : "border-muted-foreground/30"}`}>
+              <button onClick={() => toggleSource(s.id, s.enabled)} className={`flex-shrink-0 h-4 w-4 rounded border transition-colors ${s.enabled ? "bg-primary border-primary" : "border-muted-foreground/30"}`}>
                 {s.enabled && <Check className="h-4 w-4 text-primary-foreground" />}
               </button>
               <div className="flex-shrink-0">
@@ -160,7 +178,7 @@ export default function SettingsPage() {
                 <p className={`text-sm font-medium truncate ${s.enabled ? "text-foreground" : "text-muted-foreground"}`}>{s.name}</p>
                 <p className="text-[10px] text-muted-foreground truncate">{s.url}</p>
               </div>
-              <span className="hidden sm:inline text-[10px] text-muted-foreground font-mono">{s.regionHint}</span>
+              <span className="hidden sm:inline text-[10px] text-muted-foreground font-mono">{s.region_hint}</span>
               <button onClick={() => removeSource(s.id)} className="text-muted-foreground hover:text-destructive transition-colors">
                 <Trash2 className="h-3.5 w-3.5" />
               </button>

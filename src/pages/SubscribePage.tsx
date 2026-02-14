@@ -1,17 +1,26 @@
 import { useState } from "react";
 import { Mail, Check } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useSubscribe } from "@/hooks/useSupabaseData";
 
 export default function SubscribePage() {
   const { toast } = useToast();
   const [email, setEmail] = useState("");
   const [submitted, setSubmitted] = useState(false);
+  const subscribeMut = useSubscribe();
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!email.trim()) return;
-    setSubmitted(true);
-    toast({ title: "Subscribed!", description: `Daily reports will be sent to ${email}` });
+    subscribeMut.mutate(email, {
+      onSuccess: () => {
+        setSubmitted(true);
+        toast({ title: "Subscribed!", description: `Daily reports will be sent to ${email}` });
+      },
+      onError: (err) => {
+        toast({ title: "Error", description: err.message, variant: "destructive" });
+      },
+    });
   };
 
   return (
@@ -49,9 +58,10 @@ export default function SubscribePage() {
           </div>
           <button
             type="submit"
-            className="w-full py-2 rounded-lg bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition-colors"
+            disabled={subscribeMut.isPending}
+            className="w-full py-2 rounded-lg bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50"
           >
-            Subscribe
+            {subscribeMut.isPending ? "Subscribing..." : "Subscribe"}
           </button>
           <p className="text-[10px] text-center text-muted-foreground">
             You can unsubscribe at any time via the link in each email.
