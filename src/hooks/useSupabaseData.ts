@@ -183,8 +183,8 @@ export function useSubscribe() {
       }
       const { error } = await supabase.from("subscriptions").insert({ email: cleanEmail });
       if (error) {
-        if (error.code === "23505") throw new Error("This email is already subscribed");
-        throw error;
+        if (error.code === "23505") throw new Error("This email is already subscribed.");
+        throw new Error("Something went wrong. Please try again.");
       }
     },
   });

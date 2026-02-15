@@ -3,6 +3,7 @@ import { Mail, Check } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useSubscribe } from "@/hooks/useSupabaseData";
 import { z } from "zod";
+import { sanitizeError } from "@/lib/sanitizeError";
 
 const emailSchema = z.string().trim().toLowerCase().email("Please enter a valid email address").max(255, "Email is too long");
 
@@ -28,7 +29,7 @@ export default function SubscribePage() {
         toast({ title: "Subscribed!", description: `Daily reports will be sent to ${email}` });
       },
       onError: (err) => {
-        toast({ title: "Error", description: err.message, variant: "destructive" });
+        toast({ title: "Error", description: sanitizeError(err), variant: "destructive" });
       },
     });
   };
