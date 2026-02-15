@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useSources, useKeywords, useAddSource, useToggleSource, useDeleteSource, useAddKeyword, useDeleteKeyword } from "@/hooks/useSupabaseData";
 import { Plus, Trash2, X, Check, Globe, Rss, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { sanitizeError } from "@/lib/sanitizeError";
 
 export default function SettingsPage() {
   const { toast } = useToast();
@@ -28,7 +29,7 @@ export default function SettingsPage() {
         if (type === "include") setNewInclude(""); else setNewExclude("");
         toast({ title: "Keyword added", description: val });
       },
-      onError: (e) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+      onError: (e) => toast({ title: "Error", description: sanitizeError(e), variant: "destructive" }),
     });
   };
 
@@ -54,7 +55,7 @@ export default function SettingsPage() {
         setShowAddSource(false);
         toast({ title: "Source added", description: newSource.name });
       },
-      onError: (e) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+      onError: (e) => toast({ title: "Error", description: sanitizeError(e), variant: "destructive" }),
     });
   };
 
