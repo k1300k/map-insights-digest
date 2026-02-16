@@ -51,6 +51,40 @@ export interface DbReportItem {
   published_at: string | null;
 }
 
+export interface DbAiConfig {
+  id: string;
+  provider: string;
+  model: string;
+  api_key: string | null;
+  endpoint_url: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+// AI Config
+export function useAiConfig() {
+  return useQuery({
+    queryKey: ["ai_config"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("ai_config").select("*").limit(1).single();
+      if (error && error.code !== "PGRST116") throw error;
+      return data as DbAiConfig | null;
+    },
+  });
+}
+
+export function useUpdateAiConfig() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (config: { id: string; provider: string; model: string; api_key?: string | null; endpoint_url?: string | null }) => {
+      const { id, ...updates } = config;
+      const { error } = await supabase.from("ai_config").update(updates).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["ai_config"] }),
+  });
+}
+
 // Sources
 export function useSources() {
   return useQuery({

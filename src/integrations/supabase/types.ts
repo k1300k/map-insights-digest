@@ -14,6 +14,36 @@ export type Database = {
   }
   public: {
     Tables: {
+      ai_config: {
+        Row: {
+          api_key: string | null
+          created_at: string
+          endpoint_url: string | null
+          id: string
+          model: string
+          provider: string
+          updated_at: string
+        }
+        Insert: {
+          api_key?: string | null
+          created_at?: string
+          endpoint_url?: string | null
+          id?: string
+          model?: string
+          provider?: string
+          updated_at?: string
+        }
+        Update: {
+          api_key?: string | null
+          created_at?: string
+          endpoint_url?: string | null
+          id?: string
+          model?: string
+          provider?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       keywords: {
         Row: {
           created_at: string

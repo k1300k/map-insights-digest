@@ -8,8 +8,6 @@ const corsHeaders = {
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-const GOOGLE_GEMINI_API_KEY = Deno.env.get("GOOGLE_GEMINI_API_KEY")!;
-const GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -19,12 +17,29 @@ Deno.serve(async (req) => {
   const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
 
   try {
-    // 1. Determine today's date in KST
+    // 1. Load AI config from DB
+    const { data: aiConfig } = await supabase.from("ai_config").select("*").limit(1).single();
+    
+    const provider = aiConfig?.provider || "lovable";
+    const model = aiConfig?.model || "google/gemini-2.5-flash";
+    let aiEndpoint: string;
+    let aiApiKey: string;
+
+    if (provider === "google") {
+      aiEndpoint = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions";
+      aiApiKey = aiConfig?.api_key || Deno.env.get("GOOGLE_GEMINI_API_KEY") || "";
+    } else {
+      // Default: Lovable AI Gateway
+      aiEndpoint = aiConfig?.endpoint_url || "https://ai.gateway.lovable.dev/v1/chat/completions";
+      aiApiKey = Deno.env.get("LOVABLE_API_KEY")!;
+    }
+
+    // 2. Determine today's date in KST
     const now = new Date();
     const kst = new Date(now.getTime() + 9 * 60 * 60 * 1000);
     const dateStr = kst.toISOString().slice(0, 10);
 
-    // 2. Check for duplicate run
+    // 3. Check for duplicate run
     const { data: existing } = await supabase
       .from("report_runs")
       .select("id, status")
@@ -37,7 +52,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    // 3. Create or reuse run
+    // 4. Create or reuse run
     let runId: string;
     if (existing) {
       runId = existing.id;
@@ -52,7 +67,7 @@ Deno.serve(async (req) => {
       runId = run.id;
     }
 
-    // 4. Fetch sources & keywords
+    // 5. Fetch sources & keywords
     const [{ data: sources }, { data: includeKw }, { data: excludeKw }] = await Promise.all([
       supabase.from("sources").select("*").eq("enabled", true),
       supabase.from("keywords").select("value").eq("type", "include"),
@@ -62,7 +77,7 @@ Deno.serve(async (req) => {
     const includeTerms = (includeKw || []).map((k: { value: string }) => k.value.toLowerCase());
     const excludeTerms = (excludeKw || []).map((k: { value: string }) => k.value.toLowerCase());
 
-    // 5. Fetch articles from RSS sources
+    // 6. Fetch articles from RSS sources
     const allArticles: { title: string; link: string; sourceName: string; region: string }[] = [];
 
     for (const source of sources || []) {
@@ -74,7 +89,6 @@ Deno.serve(async (req) => {
         if (!res.ok) continue;
         const text = await res.text();
 
-        // Simple RSS item extraction
         const itemRegex = /<item[\s>]([\s\S]*?)<\/item>/gi;
         let match;
         while ((match = itemRegex.exec(text)) !== null) {
@@ -90,7 +104,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    // 6. Filter by keywords
+    // 7. Filter by keywords
     const seen = new Set<string>();
     const filtered = allArticles.filter((a) => {
       if (seen.has(a.link)) return false;
@@ -101,10 +115,9 @@ Deno.serve(async (req) => {
       return hasInclude && !hasExclude;
     });
 
-    // Update counts
     await supabase.from("report_runs").update({ total_articles: allArticles.length, filtered_articles: filtered.length }).eq("id", runId);
 
-    // 7. If no articles, mark complete
+    // 8. If no articles, mark complete
     if (filtered.length === 0) {
       await supabase.from("report_runs").update({ status: "completed", completed_at: new Date().toISOString() }).eq("id", runId);
       return new Response(JSON.stringify({ message: "No relevant articles found", total: allArticles.length }), {
@@ -112,15 +125,15 @@ Deno.serve(async (req) => {
       });
     }
 
-    // 8. AI summarization (batch up to 20 articles)
+    // 9. AI summarization (batch up to 20 articles)
     const batch = filtered.slice(0, 20);
     const articleList = batch.map((a, i) => `${i + 1}. [${a.region}] "${a.title}" (${a.sourceName}) — ${a.link}`).join("\n");
 
-    const aiRes = await fetch(GEMINI_API_URL, {
+    const aiRes = await fetch(aiEndpoint, {
       method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${GOOGLE_GEMINI_API_KEY}` },
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${aiApiKey}` },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
+        model,
         messages: [
           {
             role: "system",
@@ -160,7 +173,6 @@ Return ONLY a JSON array. No markdown. Max 5 items, pick the most relevant.`,
 
     const aiData = await aiRes.json();
     let content = aiData.choices?.[0]?.message?.content || "[]";
-    // Strip markdown fences if present
     content = content.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
     
     let reportItems: any[];
@@ -175,7 +187,7 @@ Return ONLY a JSON array. No markdown. Max 5 items, pick the most relevant.`,
       });
     }
 
-    // 9. Delete old items for this run and insert new
+    // 10. Delete old items for this run and insert new
     await supabase.from("report_items").delete().eq("report_run_id", runId);
 
     const rows = reportItems.map((item: any) => ({
@@ -198,7 +210,7 @@ Return ONLY a JSON array. No markdown. Max 5 items, pick the most relevant.`,
     const { error: insertErr } = await supabase.from("report_items").insert(rows);
     if (insertErr) throw insertErr;
 
-    // 10. Mark complete
+    // 11. Mark complete
     await supabase.from("report_runs").update({ status: "completed", completed_at: new Date().toISOString() }).eq("id", runId);
 
     return new Response(

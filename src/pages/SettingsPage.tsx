@@ -1,14 +1,26 @@
-import { useState } from "react";
-import { useSources, useKeywords, useAddSource, useToggleSource, useDeleteSource, useAddKeyword, useDeleteKeyword } from "@/hooks/useSupabaseData";
-import { Plus, Trash2, X, Check, Globe, Rss, Loader2 } from "lucide-react";
+import { useState, useEffect } from "react";
+import { useSources, useKeywords, useAddSource, useToggleSource, useDeleteSource, useAddKeyword, useDeleteKeyword, useAiConfig, useUpdateAiConfig } from "@/hooks/useSupabaseData";
+import { Plus, Trash2, X, Check, Globe, Rss, Loader2, Bot, Eye, EyeOff, Save } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { sanitizeError } from "@/lib/sanitizeError";
+
+const AI_PROVIDERS = [
+  { value: "lovable", label: "Lovable AI (기본)", models: [
+    "google/gemini-2.5-flash", "google/gemini-2.5-pro", "google/gemini-3-flash-preview", "google/gemini-3-pro-preview",
+    "openai/gpt-5", "openai/gpt-5-mini", "openai/gpt-5-nano",
+  ]},
+  { value: "google", label: "Google Gemini (직접 API)", models: [
+    "gemini-2.5-flash", "gemini-2.5-pro", "gemini-2.0-flash", "gemini-1.5-pro",
+  ]},
+];
 
 export default function SettingsPage() {
   const { toast } = useToast();
   const { data: sources = [], isLoading: loadingSources } = useSources();
   const { data: includeKw = [], isLoading: loadingInclude } = useKeywords("include");
   const { data: excludeKw = [], isLoading: loadingExclude } = useKeywords("exclude");
+  const { data: aiConfig, isLoading: loadingAiConfig } = useAiConfig();
+  const updateAiConfigMut = useUpdateAiConfig();
 
   const addSourceMut = useAddSource();
   const toggleSourceMut = useToggleSource();
@@ -20,6 +32,22 @@ export default function SettingsPage() {
   const [newExclude, setNewExclude] = useState("");
   const [showAddSource, setShowAddSource] = useState(false);
   const [newSource, setNewSource] = useState({ name: "", type: "rss" as string, url: "", parser_type: "standard", region_hint: "NA" as string });
+
+  // AI config state
+  const [aiProvider, setAiProvider] = useState("lovable");
+  const [aiModel, setAiModel] = useState("google/gemini-2.5-flash");
+  const [aiApiKey, setAiApiKey] = useState("");
+  const [showApiKey, setShowApiKey] = useState(false);
+  const [aiDirty, setAiDirty] = useState(false);
+
+  useEffect(() => {
+    if (aiConfig) {
+      setAiProvider(aiConfig.provider);
+      setAiModel(aiConfig.model);
+      setAiApiKey(aiConfig.api_key || "");
+      setAiDirty(false);
+    }
+  }, [aiConfig]);
 
   const addKeyword = (type: "include" | "exclude") => {
     const val = type === "include" ? newInclude.trim() : newExclude.trim();
@@ -59,7 +87,30 @@ export default function SettingsPage() {
     });
   };
 
-  const isLoading = loadingSources || loadingInclude || loadingExclude;
+  const handleProviderChange = (provider: string) => {
+    setAiProvider(provider);
+    const providerConfig = AI_PROVIDERS.find(p => p.value === provider);
+    if (providerConfig) setAiModel(providerConfig.models[0]);
+    setAiDirty(true);
+  };
+
+  const saveAiConfig = () => {
+    if (!aiConfig) return;
+    updateAiConfigMut.mutate({
+      id: aiConfig.id,
+      provider: aiProvider,
+      model: aiModel,
+      api_key: aiProvider === "google" ? aiApiKey : null,
+    }, {
+      onSuccess: () => {
+        toast({ title: "AI 설정 저장됨", description: `${aiProvider} / ${aiModel}` });
+        setAiDirty(false);
+      },
+      onError: (e) => toast({ title: "Error", description: sanitizeError(e), variant: "destructive" }),
+    });
+  };
+
+  const isLoading = loadingSources || loadingInclude || loadingExclude || loadingAiConfig;
 
   if (isLoading) {
     return (
@@ -74,6 +125,83 @@ export default function SettingsPage() {
       <div>
         <h1 className="text-xl sm:text-2xl font-bold text-foreground">Settings</h1>
         <p className="text-sm text-muted-foreground mt-1">Manage keywords and sources for daily pipeline</p>
+      </div>
+
+      {/* AI Engine Config */}
+      <div className="rounded-xl border border-border bg-card p-4 shadow-card space-y-4">
+        <div className="flex items-center gap-2">
+          <Bot className="h-4 w-4 text-primary" />
+          <h2 className="text-sm font-semibold text-foreground">AI Engine</h2>
+        </div>
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div>
+            <label className="text-xs text-muted-foreground mb-1 block">Provider</label>
+            <select
+              value={aiProvider}
+              onChange={(e) => handleProviderChange(e.target.value)}
+              className="w-full px-3 py-1.5 rounded-lg border border-input bg-background text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+            >
+              {AI_PROVIDERS.map((p) => (
+                <option key={p.value} value={p.value}>{p.label}</option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="text-xs text-muted-foreground mb-1 block">Model</label>
+            <select
+              value={aiModel}
+              onChange={(e) => { setAiModel(e.target.value); setAiDirty(true); }}
+              className="w-full px-3 py-1.5 rounded-lg border border-input bg-background text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+            >
+              {AI_PROVIDERS.find(p => p.value === aiProvider)?.models.map((m) => (
+                <option key={m} value={m}>{m}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        {aiProvider === "google" && (
+          <div>
+            <label className="text-xs text-muted-foreground mb-1 block">Google Gemini API Key</label>
+            <div className="flex gap-2">
+              <div className="relative flex-1">
+                <input
+                  type={showApiKey ? "text" : "password"}
+                  value={aiApiKey}
+                  onChange={(e) => { setAiApiKey(e.target.value); setAiDirty(true); }}
+                  placeholder="AIza..."
+                  className="w-full px-3 py-1.5 pr-9 rounded-lg border border-input bg-background text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring font-mono"
+                />
+                <button
+                  onClick={() => setShowApiKey(!showApiKey)}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                >
+                  {showApiKey ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                </button>
+              </div>
+            </div>
+            <p className="text-[10px] text-muted-foreground mt-1">
+              <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer" className="underline hover:text-foreground">Google AI Studio</a>에서 API 키를 발급받으세요
+            </p>
+          </div>
+        )}
+
+        {aiProvider === "lovable" && (
+          <p className="text-xs text-muted-foreground">Lovable AI는 별도의 API 키 없이 사용 가능합니다.</p>
+        )}
+
+        <div className="flex justify-end">
+          <button
+            onClick={saveAiConfig}
+            disabled={!aiDirty || updateAiConfigMut.isPending}
+            className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {updateAiConfigMut.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
+            저장
+          </button>
+        </div>
       </div>
 
       {/* Keywords */}
