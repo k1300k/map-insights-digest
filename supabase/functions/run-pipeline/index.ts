@@ -116,6 +116,11 @@ Deno.serve(async (req) => {
     const allArticles: { title: string; link: string; sourceName: string; region: string }[] = [];
 
     for (const source of sources || []) {
+      // SSRF guard: skip disallowed URLs at runtime
+      if (!isAllowedUrl(source.url)) {
+        console.warn(`Skipping disallowed URL: ${source.url}`);
+        continue;
+      }
       try {
         const res = await fetch(source.url, {
           headers: { "User-Agent": "GMIR-Bot/1.0 (+https://map-watch-report.lovable.app)" },
