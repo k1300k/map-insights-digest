@@ -115,7 +115,7 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* Latest items */}
+      {/* Latest items grouped by region */}
       {reportCardItems.length > 0 && (
         <div>
           <div className="flex items-center justify-between mb-4">
@@ -126,11 +126,28 @@ export default function Dashboard() {
               {lang === "ko" ? "전체 보기" : "View all"} <ArrowRight className="h-3 w-3" />
             </Link>
           </div>
-          <div className="grid gap-4 sm:grid-cols-2">
-            {reportCardItems.slice(0, 4).map((item) => (
-              <ReportCard key={item.id} item={item} lang={lang} />
-            ))}
-          </div>
+          {(["NA", "EU", "KR"] as const).map((region) => {
+            const regionItems = reportCardItems.filter((i) => i.region === region);
+            if (regionItems.length === 0) return null;
+            const regionLabels = {
+              NA: { ko: "🇺🇸 북미", en: "🇺🇸 North America" },
+              EU: { ko: "🇪🇺 유럽", en: "🇪🇺 Europe" },
+              KR: { ko: "🇰🇷 한국", en: "🇰🇷 Korea" },
+            };
+            return (
+              <section key={region} className="mb-5">
+                <h3 className="text-xs font-semibold text-muted-foreground mb-3 flex items-center gap-2">
+                  {regionLabels[region][lang]}
+                  <span className="font-normal">({regionItems.length})</span>
+                </h3>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  {regionItems.slice(0, 2).map((item) => (
+                    <ReportCard key={item.id} item={item} lang={lang} />
+                  ))}
+                </div>
+              </section>
+            );
+          })}
         </div>
       )}
 
