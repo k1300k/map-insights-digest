@@ -1,0 +1,1 @@
+DROP POLICY IF EXISTS "Public read ai_config" ON public.ai_config;
