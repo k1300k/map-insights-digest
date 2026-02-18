@@ -9,9 +9,44 @@ const corsHeaders = {
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
+// Validates URLs to prevent SSRF attacks
+function isAllowedUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    if (!["http:", "https:"].includes(parsed.protocol)) return false;
+    const hostname = parsed.hostname.toLowerCase();
+    // Block localhost and private IP ranges
+    if (
+      hostname === "localhost" ||
+      hostname === "127.0.0.1" ||
+      hostname === "0.0.0.0" ||
+      /^169\.254\./.test(hostname) || // Link-local / cloud metadata
+      /^10\./.test(hostname) ||
+      /^172\.(1[6-9]|2\d|3[01])\./.test(hostname) ||
+      /^192\.168\./.test(hostname)
+    ) return false;
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+const PIPELINE_SECRET = Deno.env.get("PIPELINE_SECRET");
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
+  }
+
+  // Require shared secret to prevent unauthorised invocations
+  if (PIPELINE_SECRET) {
+    const authHeader = req.headers.get("x-pipeline-secret");
+    if (authHeader !== PIPELINE_SECRET) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
   }
 
   const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
