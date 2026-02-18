@@ -7,12 +7,11 @@ import LangToggle from "@/components/LangToggle";
 import { Loader2 } from "lucide-react";
 import type { Region } from "@/data/types";
 
-const regionOrder: Region[] = ["NA", "EU", "KR", "Unknown"];
-const regionLabels: Record<Region, { ko: string; en: string }> = {
+const regionOrder: Region[] = ["NA", "EU", "KR"];
+const regionLabels: Record<string, { ko: string; en: string }> = {
   NA: { ko: "🇺🇸 북미", en: "🇺🇸 North America" },
   EU: { ko: "🇪🇺 유럽", en: "🇪🇺 Europe" },
   KR: { ko: "🇰🇷 한국", en: "🇰🇷 Korea" },
-  Unknown: { ko: "🌐 기타", en: "🌐 Other" },
 };
 
 export default function ReportDetail() {

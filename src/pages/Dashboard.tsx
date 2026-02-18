@@ -56,7 +56,7 @@ export default function Dashboard() {
   // Map DB items to ReportCard format
   const reportCardItems = items.map((item) => ({
     id: item.id,
-    region: item.region as "NA" | "EU" | "KR" | "Unknown",
+    region: (["NA", "EU", "KR"].includes(item.region) ? item.region : "NA") as "NA" | "EU" | "KR" | "Unknown",
     titleKo: item.title_ko,
     titleEn: item.title_en,
     summaryKo: item.summary_ko,
