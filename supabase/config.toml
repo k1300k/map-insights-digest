@@ -5,3 +5,6 @@ verify_jwt = false
 
 [functions.trigger-pipeline]
 verify_jwt = false
+
+[functions.unsubscribe]
+verify_jwt = false
