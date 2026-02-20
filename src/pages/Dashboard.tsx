@@ -21,7 +21,7 @@ export default function Dashboard() {
   const handleRunPipeline = async () => {
     setRunning(true);
     try {
-      const { data, error } = await supabase.functions.invoke("run-pipeline");
+      const { data, error } = await supabase.functions.invoke("trigger-pipeline");
       if (error) throw error;
       toast({ title: lang === "ko" ? "완료!" : "Done!", description: data?.message || "Pipeline finished" });
       queryClient.invalidateQueries({ queryKey: ["latest_report"] });
