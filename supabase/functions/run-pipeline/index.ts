@@ -38,15 +38,19 @@ Deno.serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
-  // Require shared secret to prevent unauthorised invocations
-  if (PIPELINE_SECRET) {
-    const authHeader = req.headers.get("x-pipeline-secret");
-    if (authHeader !== PIPELINE_SECRET) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+  // Allow access via PIPELINE_SECRET header OR via service_role Authorization header (for cron)
+  const providedSecret = req.headers.get("x-pipeline-secret");
+  const authHeader = req.headers.get("Authorization") || "";
+  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
+
+  const hasValidSecret = PIPELINE_SECRET && providedSecret === PIPELINE_SECRET;
+  const hasServiceRole = serviceRoleKey && authHeader === `Bearer ${serviceRoleKey}`;
+
+  if (PIPELINE_SECRET && !hasValidSecret && !hasServiceRole) {
+    return new Response(JSON.stringify({ error: "Unauthorized" }), {
+      status: 401,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
   }
 
   const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
