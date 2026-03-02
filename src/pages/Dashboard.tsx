@@ -4,6 +4,7 @@ import { useLatestReport, useLatestReportItems, useReportRuns } from "@/hooks/us
 import { StatusBadge } from "@/components/Badges";
 import ReportCard from "@/components/ReportCard";
 import LangToggle from "@/components/LangToggle";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { ArrowRight, Clock, FileText, Filter, TrendingUp, Loader2, Play } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
@@ -126,28 +127,42 @@ export default function Dashboard() {
               {lang === "ko" ? "전체 보기" : "View all"} <ArrowRight className="h-3 w-3" />
             </Link>
           </div>
-          {(["NA", "EU", "KR"] as const).map((region) => {
-            const regionItems = reportCardItems.filter((i) => i.region === region);
-            if (regionItems.length === 0) return null;
-            const regionLabels = {
-              NA: { ko: "🇺🇸 북미", en: "🇺🇸 North America" },
-              EU: { ko: "🇪🇺 유럽", en: "🇪🇺 Europe" },
-              KR: { ko: "🇰🇷 한국", en: "🇰🇷 Korea" },
-            };
-            return (
-              <section key={region} className="mb-5">
-                <h3 className="text-xs font-semibold text-muted-foreground mb-3 flex items-center gap-2">
-                  {regionLabels[region][lang]}
-                  <span className="font-normal">({regionItems.length})</span>
-                </h3>
-                <div className="grid gap-4 sm:grid-cols-2">
-                  {regionItems.slice(0, 2).map((item) => (
-                    <ReportCard key={item.id} item={item} lang={lang} />
-                  ))}
-                </div>
-              </section>
-            );
-          })}
+          <Tabs defaultValue="NA">
+            <TabsList className="mb-4">
+              {(["NA", "EU", "KR"] as const).map((region) => {
+                const count = reportCardItems.filter((i) => i.region === region).length;
+                const labels = {
+                  NA: { ko: "🇺🇸 북미", en: "🇺🇸 North America" },
+                  EU: { ko: "🇪🇺 유럽", en: "🇪🇺 Europe" },
+                  KR: { ko: "🇰🇷 국내", en: "🇰🇷 Korea" },
+                };
+                return (
+                  <TabsTrigger key={region} value={region} className="text-xs gap-1.5">
+                    {labels[region][lang]}
+                    {count > 0 && <span className="text-muted-foreground font-normal">({count})</span>}
+                  </TabsTrigger>
+                );
+              })}
+            </TabsList>
+            {(["NA", "EU", "KR"] as const).map((region) => {
+              const regionItems = reportCardItems.filter((i) => i.region === region);
+              return (
+                <TabsContent key={region} value={region}>
+                  {regionItems.length > 0 ? (
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      {regionItems.map((item) => (
+                        <ReportCard key={item.id} item={item} lang={lang} />
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground py-6 text-center">
+                      {lang === "ko" ? "해당 지역의 업데이트가 없습니다." : "No updates for this region."}
+                    </p>
+                  )}
+                </TabsContent>
+              );
+            })}
+          </Tabs>
         </div>
       )}
 
