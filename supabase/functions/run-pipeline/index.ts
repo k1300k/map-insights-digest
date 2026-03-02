@@ -159,6 +159,14 @@ Deno.serve(async (req) => {
       return hasInclude && !hasExclude;
     });
 
+    // Log per-region breakdown
+    const regionCounts: Record<string, number> = {};
+    for (const a of filtered) {
+      regionCounts[a.region] = (regionCounts[a.region] || 0) + 1;
+    }
+    console.log("Filtered articles by region:", JSON.stringify(regionCounts));
+    console.log("Total articles:", allArticles.length, "Filtered:", filtered.length);
+
     await supabase.from("report_runs").update({ total_articles: allArticles.length, filtered_articles: filtered.length }).eq("id", runId);
 
     // 8. If no articles, mark complete
