@@ -169,19 +169,31 @@ Deno.serve(async (req) => {
       });
     }
 
-    // 9. AI summarization (batch up to 20 articles)
-    const batch = filtered.slice(0, 20);
-    const articleList = batch.map((a, i) => `${i + 1}. [${a.region}] "${a.title}" (${a.sourceName}) — ${a.link}`).join("\n");
+    // 9. AI summarization — process per region to ensure balanced coverage
+    const regionOrder: string[] = ["NA", "EU", "KR"];
+    const byRegion: Record<string, typeof filtered> = {};
+    for (const a of filtered) {
+      const r = regionOrder.includes(a.region) ? a.region : "NA";
+      (byRegion[r] ??= []).push(a);
+    }
 
-    const aiRes = await fetch(aiEndpoint, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${aiApiKey}` },
-      body: JSON.stringify({
-        model,
-        messages: [
-          {
-            role: "system",
-            content: `You are a Google Maps & local-search intelligence analyst. Given a list of news articles, produce a JSON array of report items. Each item:
+    let allReportItems: any[] = [];
+
+    for (const region of regionOrder) {
+      const regionArticles = (byRegion[region] || []).slice(0, 10);
+      if (regionArticles.length === 0) continue;
+
+      const articleList = regionArticles.map((a, i) => `${i + 1}. [${a.region}] "${a.title}" (${a.sourceName}) — ${a.link}`).join("\n");
+
+      const aiRes = await fetch(aiEndpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${aiApiKey}` },
+        body: JSON.stringify({
+          model,
+          messages: [
+            {
+              role: "system",
+              content: `You are a Google Maps & local-search intelligence analyst. Given a list of news articles from the ${region} region, produce a JSON array of report items. Each item:
 {
   "title_en": "English title",
   "title_ko": "Korean title",
@@ -192,44 +204,49 @@ Deno.serve(async (req) => {
   "tags": ["tag1","tag2"],
   "confidence": 0.0-1.0,
   "relevance_score": 0.0-1.0,
-  "region": "NA"|"EU"|"KR"|"Unknown",
+  "region": "${region}",
   "source_url": "original link",
   "source_name": "source name"
 }
-Return ONLY a JSON array. No markdown. Max 5 items, pick the most relevant.`,
-          },
-          { role: "user", content: articleList },
-        ],
-        temperature: 0.3,
-        max_tokens: 8000,
-      }),
-    });
+Return ONLY a JSON array. No markdown. Pick the 1-3 most relevant items.`,
+            },
+            { role: "user", content: articleList },
+          ],
+          temperature: 0.3,
+          max_tokens: 4000,
+        }),
+      });
 
-    if (!aiRes.ok) {
-      const errText = await aiRes.text();
-      console.error("AI error:", errText);
+      if (!aiRes.ok) {
+        const errText = await aiRes.text();
+        console.error(`AI error for region ${region}:`, errText);
+        continue; // Skip this region but don't fail entire pipeline
+      }
+
+      const aiData = await aiRes.json();
+      let content = aiData.choices?.[0]?.message?.content || "[]";
+      content = content.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+
+      try {
+        const items = JSON.parse(content);
+        if (Array.isArray(items)) {
+          allReportItems.push(...items);
+        }
+      } catch {
+        console.error(`Failed to parse AI response for region ${region}:`, content);
+        continue;
+      }
+    }
+
+    if (allReportItems.length === 0) {
       await supabase.from("report_runs").update({ status: "failed" }).eq("id", runId);
-      return new Response(JSON.stringify({ error: "AI summarization failed" }), {
+      return new Response(JSON.stringify({ error: "AI summarization failed for all regions" }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    const aiData = await aiRes.json();
-    let content = aiData.choices?.[0]?.message?.content || "[]";
-    content = content.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
-    
-    let reportItems: any[];
-    try {
-      reportItems = JSON.parse(content);
-    } catch {
-      console.error("Failed to parse AI response:", content);
-      await supabase.from("report_runs").update({ status: "failed" }).eq("id", runId);
-      return new Response(JSON.stringify({ error: "Failed to parse AI response" }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+    const reportItems = allReportItems;
 
     // 10. Delete old items for this run and insert new
     await supabase.from("report_items").delete().eq("report_run_id", runId);
