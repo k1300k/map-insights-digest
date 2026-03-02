@@ -150,7 +150,8 @@ Deno.serve(async (req) => {
 
     // 7. Filter by keywords
     const seen = new Set<string>();
-    const filtered = allArticles.filter((a) => {
+    // First pass: filter with keywords
+    const keywordFiltered = allArticles.filter((a) => {
       if (seen.has(a.link)) return false;
       seen.add(a.link);
       const lower = (a.title).toLowerCase();
@@ -158,6 +159,33 @@ Deno.serve(async (req) => {
       const hasExclude = excludeTerms.some((t) => lower.includes(t));
       return hasInclude && !hasExclude;
     });
+
+    // Ensure minimum regional coverage: if a region has 0 keyword-matched articles,
+    // include all (non-excluded) articles from that region so AI can judge relevance
+    const regionOrder: string[] = ["NA", "EU", "KR"];
+    const filteredByRegion: Record<string, typeof keywordFiltered> = {};
+    for (const a of keywordFiltered) {
+      const r = regionOrder.includes(a.region) ? a.region : "NA";
+      (filteredByRegion[r] ??= []).push(a);
+    }
+
+    // For regions with no keyword matches, add all non-excluded articles
+    const seenAll = new Set(keywordFiltered.map(a => a.link));
+    for (const region of regionOrder) {
+      if ((filteredByRegion[region] || []).length === 0) {
+        const regionArticles = allArticles.filter(a => {
+          if (seenAll.has(a.link)) return false;
+          const r = regionOrder.includes(a.region) ? a.region : "NA";
+          if (r !== region) return false;
+          const lower = a.title.toLowerCase();
+          const hasExclude = excludeTerms.some((t) => lower.includes(t));
+          return !hasExclude;
+        });
+        filteredByRegion[region] = regionArticles;
+      }
+    }
+
+    const filtered = Object.values(filteredByRegion).flat();
 
     // Log per-region breakdown
     const regionCounts: Record<string, number> = {};
@@ -178,17 +206,12 @@ Deno.serve(async (req) => {
     }
 
     // 9. AI summarization — process per region to ensure balanced coverage
-    const regionOrder: string[] = ["NA", "EU", "KR"];
-    const byRegion: Record<string, typeof filtered> = {};
-    for (const a of filtered) {
-      const r = regionOrder.includes(a.region) ? a.region : "NA";
-      (byRegion[r] ??= []).push(a);
-    }
+    let allReportItems: any[] = [];
 
     let allReportItems: any[] = [];
 
     for (const region of regionOrder) {
-      const regionArticles = (byRegion[region] || []).slice(0, 10);
+      const regionArticles = (filteredByRegion[region] || []).slice(0, 10);
       if (regionArticles.length === 0) continue;
 
       const articleList = regionArticles.map((a, i) => `${i + 1}. [${a.region}] "${a.title}" (${a.sourceName}) — ${a.link}`).join("\n");
