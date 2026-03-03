@@ -12,7 +12,6 @@ Deno.serve(async (req) => {
   }
 
   try {
-    // Call run-pipeline with the shared secret
     const pipelineUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/run-pipeline`;
     const pipelineSecret = Deno.env.get("PIPELINE_SECRET") || "";
 
@@ -22,6 +21,7 @@ Deno.serve(async (req) => {
         "Content-Type": "application/json",
         "x-pipeline-secret": pipelineSecret,
       },
+      body: JSON.stringify({ force: true }),
     });
 
     const body = await res.text();
