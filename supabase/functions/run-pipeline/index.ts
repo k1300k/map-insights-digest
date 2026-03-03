@@ -208,8 +208,6 @@ Deno.serve(async (req) => {
     // 9. AI summarization — process per region to ensure balanced coverage
     let allReportItems: any[] = [];
 
-    let allReportItems: any[] = [];
-
     for (const region of regionOrder) {
       const regionArticles = (filteredByRegion[region] || []).slice(0, 10);
       if (regionArticles.length === 0) continue;
