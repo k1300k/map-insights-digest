@@ -4,6 +4,7 @@ import { useReportRuns, useReportItems } from "@/hooks/useSupabaseData";
 import { StatusBadge } from "@/components/Badges";
 import ReportCard from "@/components/ReportCard";
 import LangToggle from "@/components/LangToggle";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Loader2 } from "lucide-react";
 import type { Region } from "@/data/types";
 
@@ -69,27 +70,37 @@ export default function ReportDetail() {
         <LangToggle value={lang} onChange={setLang} />
       </div>
 
-      {grouped.length === 0 && (
-        <div className="rounded-xl border border-border bg-card p-8 text-center shadow-card">
-          <p className="text-sm text-muted-foreground">
-            {lang === "ko" ? "이 리포트에 항목이 없습니다." : "No items in this report."}
-          </p>
-        </div>
-      )}
-
-      {grouped.map((group) => (
-        <section key={group.region}>
-          <h2 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
-            {regionLabels[group.region][lang]}
-            <span className="text-xs text-muted-foreground font-normal">({group.items.length})</span>
-          </h2>
-          <div className="grid gap-4 sm:grid-cols-2">
-            {group.items.map((item) => (
-              <ReportCard key={item.id} item={item} lang={lang} />
-            ))}
-          </div>
-        </section>
-      ))}
+      <Tabs defaultValue="NA">
+        <TabsList className="mb-4">
+          {regionOrder.map((region) => {
+            const count = cardItems.filter((i) => i.region === region).length;
+            return (
+              <TabsTrigger key={region} value={region} className="text-xs gap-1.5">
+                {regionLabels[region][lang]}
+                {count > 0 && <span className="text-muted-foreground font-normal">({count})</span>}
+              </TabsTrigger>
+            );
+          })}
+        </TabsList>
+        {regionOrder.map((region) => {
+          const regionItems = cardItems.filter((i) => i.region === region);
+          return (
+            <TabsContent key={region} value={region}>
+              {regionItems.length > 0 ? (
+                <div className="grid gap-4 sm:grid-cols-2">
+                  {regionItems.map((item) => (
+                    <ReportCard key={item.id} item={item} lang={lang} />
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground py-6 text-center">
+                  {lang === "ko" ? "해당 지역의 업데이트가 없습니다." : "No updates for this region."}
+                </p>
+              )}
+            </TabsContent>
+          );
+        })}
+      </Tabs>
     </div>
   );
 }
