@@ -56,6 +56,13 @@ Deno.serve(async (req) => {
   const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
 
   try {
+    // Parse request body for force flag
+    let force = false;
+    try {
+      const body = await req.json();
+      force = body?.force === true;
+    } catch { /* no body or invalid JSON */ }
+
     // 1. Load AI config from DB
     const { data: aiConfig } = await supabase.from("ai_config").select("*").limit(1).single();
     
@@ -78,14 +85,14 @@ Deno.serve(async (req) => {
     const kst = new Date(now.getTime() + 9 * 60 * 60 * 1000);
     const dateStr = kst.toISOString().slice(0, 10);
 
-    // 3. Check for duplicate run
+    // 3. Check for duplicate run (skip if force=true)
     const { data: existing } = await supabase
       .from("report_runs")
       .select("id, status")
       .eq("date", dateStr)
       .maybeSingle();
 
-    if (existing && existing.status === "completed") {
+    if (!force && existing && existing.status === "completed") {
       return new Response(JSON.stringify({ message: "Report already completed for " + dateStr }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
