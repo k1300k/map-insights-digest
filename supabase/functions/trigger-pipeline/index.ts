@@ -11,44 +11,29 @@ Deno.serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
-  // Verify the caller is authenticated
-  const authHeader = req.headers.get("Authorization");
-  if (!authHeader?.startsWith("Bearer ")) {
-    return new Response(JSON.stringify({ error: "Unauthorized" }), {
-      status: 401,
+  try {
+    // Call run-pipeline with the shared secret
+    const pipelineUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/run-pipeline`;
+    const pipelineSecret = Deno.env.get("PIPELINE_SECRET") || "";
+
+    const res = await fetch(pipelineUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-pipeline-secret": pipelineSecret,
+      },
+    });
+
+    const body = await res.text();
+    return new Response(body, {
+      status: res.status,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  } catch (error) {
+    console.error("Trigger pipeline error:", error);
+    return new Response(JSON.stringify({ error: "Failed to trigger pipeline" }), {
+      status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
-
-  const supabase = createClient(
-    Deno.env.get("SUPABASE_URL")!,
-    Deno.env.get("SUPABASE_ANON_KEY")!,
-    { global: { headers: { Authorization: authHeader } } }
-  );
-
-  const { data: { user }, error: userErr } = await supabase.auth.getUser();
-  if (userErr || !user) {
-    return new Response(JSON.stringify({ error: "Unauthorized" }), {
-      status: 401,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
-  }
-
-  // Call run-pipeline with the shared secret
-  const pipelineUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/run-pipeline`;
-  const pipelineSecret = Deno.env.get("PIPELINE_SECRET") || "";
-
-  const res = await fetch(pipelineUrl, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-pipeline-secret": pipelineSecret,
-    },
-  });
-
-  const body = await res.text();
-  return new Response(body, {
-    status: res.status,
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
-  });
 });
